@@ -1,39 +1,25 @@
 # One-Click WiFi - An rsnevan product
 # Quick WiFi configuration for TUKS and eduroam networks
-# University of Pretoria Groenkloof IT Helpdesk
 
-# Require Administrator privileges
 if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-    Write-Warning "This script requires Administrator privileges. Please run as Administrator."
+    Write-Warning "This script requires Administrator privileges."
     Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
     exit
 }
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName PresentationFramework
+[void][System.Reflection.Assembly]::LoadWithPartialName("Microsoft.VisualBasic")
 
-# Welcome message
-$welcome = [System.Windows.MessageBox]::Show(
-    "One-Click WiFi Setup`n`nThis will configure TUKS and eduroam WiFi on your device.`n`nAny existing profiles will be removed and recreated.`n`nContinue?",
-    "One-Click WiFi - GKIT",
-    "YesNo",
-    "Question"
-)
+$welcome = [System.Windows.MessageBox]::Show("One-Click WiFi Setup`n`nThis will configure TUKS and eduroam WiFi on your device.`n`nAny existing profiles will be removed and recreated.`n`nContinue?", "One-Click WiFi - GKIT", "YesNo", "Question")
+if ($welcome -eq "No") { exit }
 
-if ($welcome -eq "No") {
-    exit
-}
-
-# Get TUKS username
-[void][System.Reflection.Assembly]::LoadWithPartialName('Microsoft.VisualBasic')
 $TUKSUsername = [Microsoft.VisualBasic.Interaction]::InputBox("Enter your TUKS Username (without @up.ac.za):`n`nExample: u12345678", "One-Click WiFi - Username", "")
-
 if ([string]::IsNullOrWhiteSpace($TUKSUsername)) {
     [System.Windows.MessageBox]::Show("Setup cancelled. Username is required.", "Cancelled", "OK", "Warning")
     exit
 }
 
-# Get password
 $FormPassword = New-Object System.Windows.Forms.Form
 $FormPassword.Text = "One-Click WiFi - Password"
 $FormPassword.Size = New-Object System.Drawing.Size(400, 150)
@@ -51,7 +37,7 @@ $FormPassword.Controls.Add($LabelPassword)
 $TextBoxPassword = New-Object System.Windows.Forms.TextBox
 $TextBoxPassword.Location = New-Object System.Drawing.Point(10, 50)
 $TextBoxPassword.Size = New-Object System.Drawing.Size(360, 20)
-$TextBoxPassword.PasswordChar = '*'
+$TextBoxPassword.PasswordChar = "*"
 $FormPassword.Controls.Add($TextBoxPassword)
 
 $ButtonOK = New-Object System.Windows.Forms.Button
@@ -70,7 +56,6 @@ $ButtonCancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
 $FormPassword.Controls.Add($ButtonCancel)
 
 $result = $FormPassword.ShowDialog()
-
 if ($result -eq [System.Windows.Forms.DialogResult]::Cancel) {
     [System.Windows.MessageBox]::Show("Setup cancelled.", "Cancelled", "OK", "Warning")
     exit
@@ -84,11 +69,9 @@ if ([string]::IsNullOrWhiteSpace($StudentPasswordPlain)) {
     exit
 }
 
-# Construct credentials
 $StudentEmail = "$TUKSUsername@up.ac.za"
 $EduroamUsername = "$TUKSUsername@up.ac.za"
 
-# Create progress window
 $FormProgress = New-Object System.Windows.Forms.Form
 $FormProgress.Text = "One-Click WiFi - Configuring..."
 $FormProgress.Size = New-Object System.Drawing.Size(500, 350)
@@ -117,57 +100,41 @@ $FormProgress.Controls.Add($TextBoxLog)
 $FormProgress.Show()
 $FormProgress.Refresh()
 
-function Write-Log {
-    param([string]$Message)
-    $TextBoxLog.AppendText("$Message`r`n")
-    $TextBoxLog.Refresh()
-}
+function Write-Log { param([string]$Message); $TextBoxLog.AppendText("$Message`r`n"); $TextBoxLog.Refresh() }
 
 Write-Log "One-Click WiFi Configuration"
 Write-Log "Username: $TUKSUsername"
 Write-Log "Email: $StudentEmail"
 Write-Log ""
-
-# Step 1: Remove existing profiles
 Write-Log "[1/3] Removing existing WiFi profiles..."
 
-try {
-    $existingTUKS = netsh wlan show profiles | Select-String "TUKS"
-    if ($existingTUKS) {
-        netsh wlan delete profile name="TUKS" 2>&1 | Out-Null
-        Write-Log "    ✓ Removed existing TUKS profile"
-    } else {
-        Write-Log "    ℹ No existing TUKS profile found"
-    }
-} catch {
-    Write-Log "    ⚠ Could not remove TUKS profile: $_"
+$existingTUKS = netsh wlan show profiles | Select-String "TUKS"
+if ($existingTUKS) {
+    netsh wlan delete profile name="TUKS" 2>&1 | Out-Null
+    Write-Log "    ✓ Removed existing TUKS profile"
+} else {
+    Write-Log "    ℹ No existing TUKS profile found"
 }
 
-try {
-    $existingEduroam = netsh wlan show profiles | Select-String "eduroam"
-    if ($existingEduroam) {
-        netsh wlan delete profile name="eduroam" 2>&1 | Out-Null
-        Write-Log "    ✓ Removed existing eduroam profile"
-    } else {
-        Write-Log "    ℹ No existing eduroam profile found"
-    }
-} catch {
-    Write-Log "    ⚠ Could not remove eduroam profile: $_"
+$existingEduroam = netsh wlan show profiles | Select-String "eduroam"
+if ($existingEduroam) {
+    netsh wlan delete profile name="eduroam" 2>&1 | Out-Null
+    Write-Log "    ✓ Removed existing eduroam profile"
+} else {
+    Write-Log "    ℹ No existing eduroam profile found"
 }
 
-# Step 2: Create TUKS profile
 Write-Log ""
 Write-Log "[2/3] Creating TUKS WiFi profile..."
 
-try {
-    $TUKSProfileXML = @"
+$TUKSProfileXML = @"
 <?xml version="1.0"?>
 <WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
-    <n>TUKS</n>
+    <name>TUKS</name>
     <SSIDConfig>
         <SSID>
             <hex>54554B53</hex>
-            <n>TUKS</n>
+            <name>TUKS</name>
         </SSID>
     </SSIDConfig>
     <connectionType>ESS</connectionType>
@@ -194,13 +161,13 @@ try {
     </MacRandomization>
 </WLANProfile>
 "@
-    
-    $TUKSProfilePath = "$env:TEMP\tuks_profile.xml"
-    $TUKSProfileXML | Out-File -FilePath $TUKSProfilePath -Encoding utf8
-    
-    netsh wlan add profile filename="$TUKSProfilePath" user=all 2>&1 | Out-Null
-    
-    # Set TUKS credentials
+
+$TUKSProfilePath = "$env:TEMP\tuks_profile.xml"
+$TUKSProfileXML | Out-File -FilePath $TUKSProfilePath -Encoding utf8
+
+$addResult = netsh wlan add profile filename="$TUKSProfilePath" user=all 2>&1 | Out-String
+if ($addResult -like "*is added*" -or $addResult -like "*successfully*") {
+    $interface = (netsh wlan show interfaces | Select-String "Name").ToString().Split(":")[1].Trim()
     $TUKSCred = @"
 <EapHostUserCredentials xmlns="http://www.microsoft.com/provisioning/EapHostUserCredentials">
     <EapMethod>
@@ -212,30 +179,25 @@ try {
     </Credentials>
 </EapHostUserCredentials>
 "@
-    
-    $interface = (netsh wlan show interfaces | Select-String "Name").ToString().Split(":")[1].Trim()
     netsh wlan set profileparameter name="TUKS" EAPUserData="$TUKSCred" interface="$interface" 2>&1 | Out-Null
-    
-    Remove-Item $TUKSProfilePath -Force -ErrorAction SilentlyContinue
-    
     Write-Log "    ✓ TUKS WiFi profile created successfully"
-} catch {
-    Write-Log "    ✗ Error creating TUKS profile: $_"
+} else {
+    Write-Log "    ✗ Error creating TUKS profile"
 }
 
-# Step 3: Create eduroam profile
+Remove-Item $TUKSProfilePath -Force -ErrorAction SilentlyContinue
+
 Write-Log ""
 Write-Log "[3/3] Creating eduroam WiFi profile..."
 
-try {
-    $EduroamProfileXML = @"
+$EduroamProfileXML = @"
 <?xml version="1.0"?>
 <WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
-    <n>eduroam</n>
+    <name>eduroam</name>
     <SSIDConfig>
         <SSID>
             <hex>656475726F616D</hex>
-            <n>eduroam</n>
+            <name>eduroam</name>
         </SSID>
     </SSIDConfig>
     <connectionType>ESS</connectionType>
@@ -262,13 +224,12 @@ try {
     </MacRandomization>
 </WLANProfile>
 "@
-    
-    $EduroamProfilePath = "$env:TEMP\eduroam_profile.xml"
-    $EduroamProfileXML | Out-File -FilePath $EduroamProfilePath -Encoding utf8
-    
-    netsh wlan add profile filename="$EduroamProfilePath" user=all 2>&1 | Out-Null
-    
-    # Set eduroam credentials
+
+$EduroamProfilePath = "$env:TEMP\eduroam_profile.xml"
+$EduroamProfileXML | Out-File -FilePath $EduroamProfilePath -Encoding utf8
+
+$addResult = netsh wlan add profile filename="$EduroamProfilePath" user=all 2>&1 | Out-String
+if ($addResult -like "*is added*" -or $addResult -like "*successfully*") {
     $EduroamCred = @"
 <EapHostUserCredentials xmlns="http://www.microsoft.com/provisioning/EapHostUserCredentials">
     <EapMethod>
@@ -280,44 +241,26 @@ try {
     </Credentials>
 </EapHostUserCredentials>
 "@
-    
     netsh wlan set profileparameter name="eduroam" EAPUserData="$EduroamCred" interface="$interface" 2>&1 | Out-Null
-    
-    Remove-Item $EduroamProfilePath -Force -ErrorAction SilentlyContinue
-    
     Write-Log "    ✓ eduroam WiFi profile created successfully"
-} catch {
-    Write-Log "    ✗ Error creating eduroam profile: $_"
+} else {
+    Write-Log "    ✗ Error creating eduroam profile"
 }
 
-# Try to connect
+Remove-Item $EduroamProfilePath -Force -ErrorAction SilentlyContinue
+
 Write-Log ""
 Write-Log "Attempting to connect to available network..."
 Start-Sleep -Seconds 2
 
-try {
-    # Try TUKS first
-    netsh wlan connect name="TUKS" 2>&1 | Out-Null
-    Start-Sleep -Seconds 5
-    
-    $connected = netsh wlan show interfaces | Select-String "TUKS"
-    if ($connected) {
-        Write-Log "✓ Connected to TUKS"
-    } else {
-        # Try eduroam
-        netsh wlan connect name="eduroam" 2>&1 | Out-Null
-        Start-Sleep -Seconds 5
-        
-        $connected = netsh wlan show interfaces | Select-String "eduroam"
-        if ($connected) {
-            Write-Log "✓ Connected to eduroam"
-        } else {
-            Write-Log "⚠ Profiles created but not connected"
-            Write-Log "  Please manually select TUKS or eduroam from WiFi list"
-        }
-    }
-} catch {
-    Write-Log "⚠ Connection error - please manually select network"
+netsh wlan connect name="TUKS" 2>&1 | Out-Null
+Start-Sleep -Seconds 5
+
+$connected = netsh wlan show interfaces | Select-String "TUKS|eduroam"
+if ($connected) {
+    Write-Log "✓ Connected successfully"
+} else {
+    Write-Log "⚠ Profiles created, please manually select network"
 }
 
 Write-Log ""
@@ -325,19 +268,9 @@ Write-Log "=========================================="
 Write-Log "Configuration Complete!"
 Write-Log "=========================================="
 
-# Clear sensitive data
 $StudentPasswordPlain = $null
-$TUKSCred = $null
-$EduroamCred = $null
 [System.GC]::Collect()
-
 Start-Sleep -Seconds 3
 $FormProgress.Close()
 
-# Show completion
-[System.Windows.MessageBox]::Show(
-    "WiFi Configuration Complete!`n`nBoth TUKS and eduroam networks are now configured with your credentials.`n`nYour device will automatically connect when in range.`n`nUsername: $TUKSUsername`nEmail: $StudentEmail",
-    "One-Click WiFi - Complete",
-    "OK",
-    "Information"
-)
+[System.Windows.MessageBox]::Show("WiFi Configuration Complete!`n`nBoth TUKS and eduroam networks are now configured with your credentials.`n`nUsername: $TUKSUsername`nEmail: $StudentEmail", "One-Click WiFi - Complete", "OK", "Information")
